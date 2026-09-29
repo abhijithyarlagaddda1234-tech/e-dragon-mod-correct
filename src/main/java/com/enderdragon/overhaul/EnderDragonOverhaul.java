@@ -3,6 +3,7 @@ package com.enderdragon.overhaul;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.particles.PowerParticleOption;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -10,7 +11,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
-import net.minecraft.world.entity.item.EndCrystal;
+import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -33,11 +34,10 @@ public final class EnderDragonOverhaul implements ModInitializer {
     private static void tickLevel(ServerLevel level) {
         if (level.dimension() != Level.END) return;
 
-        // Only inspect the End level once per tick. No global server scan.
-        for (EnderDragon dragon : level.getEntities().getAll().stream()
-                .filter(e -> e instanceof EnderDragon)
-                .map(e -> (EnderDragon)e)
-                .toList()) {
+        // Keep the scan bounded to the End boss arena.
+        for (EnderDragon dragon : level.getEntitiesOfClass(
+                EnderDragon.class,
+                new AABB(-256, 0, -256, 256, 512, 256))) {
             tickDragon(level, dragon);
         }
     }
@@ -136,7 +136,6 @@ public final class EnderDragonOverhaul implements ModInitializer {
             Vec3 dir = target.position().add(0, .5, 0)
                     .subtract(dragon.position()).normalize();
             dragon.setDeltaMovement(dir.scale(1.2D));
-            dragon.hasImpulse = true;
             warning(level, target.position());
             s.diveTimer = 35;
             return;
@@ -163,7 +162,7 @@ public final class EnderDragonOverhaul implements ModInitializer {
         s.attackCooldown = cooldown(s.phase, 90 - Math.min(25, players * 4));
         for (int i = 1; i <= Math.min(7, 3 + s.phase + players); i++) {
             Vec3 p = target.position().add(0, 1, 0);
-            level.sendParticles(ParticleTypes.DRAGON_BREATH,
+            level.sendParticles(PowerParticleOption.create(ParticleTypes.DRAGON_BREATH, 1.0F),
                     p.x, p.y, p.z, 3, .7, .4, .7, .01);
         }
         if (d2 < 20 * 20) {
@@ -176,8 +175,8 @@ public final class EnderDragonOverhaul implements ModInitializer {
         if (!s.finalAnnounced) {
             s.finalAnnounced = true;
             for (ServerPlayer p : participantsList(level)) {
-                p.displayClientMessage(
-                        Component.literal("The Ender Dragon enters its final phase."), true);
+                p.sendOverlayMessage(
+                        Component.literal("The Ender Dragon enters its final phase."));
             }
             level.playSound(null, dragon.blockPosition(), SoundEvents.ENDER_DRAGON_GROWL,
                     SoundSource.HOSTILE, 5.0F, .55F);
@@ -191,10 +190,10 @@ public final class EnderDragonOverhaul implements ModInitializer {
             if (s.finalTimer > 600) {
                 s.finalTimer = 0;
                 dragon.teleportTo(level, .5, 72, .5, java.util.Set.of(),
-                        dragon.getYRot(), dragon.getXRot());
+                        dragon.getYRot(), dragon.getXRot(), false);
             }
         } else if (s.tick % 10 == 0) {
-            level.sendParticles(ParticleTypes.DRAGON_BREATH,
+            level.sendParticles(PowerParticleOption.create(ParticleTypes.DRAGON_BREATH, 1.0F),
                     dragon.getX(), dragon.getY(), dragon.getZ(),
                     10, 2, 1, 2, .03);
         }
@@ -211,8 +210,8 @@ public final class EnderDragonOverhaul implements ModInitializer {
         if (count != s.lastCrystalCount) {
             s.lastCrystalCount = count;
             for (ServerPlayer p : participantsList(level)) {
-                p.displayClientMessage(
-                        Component.literal("End Crystals Remaining: " + count), true);
+                p.sendOverlayMessage(
+                        Component.literal("End Crystals Remaining: " + count));
             }
         }
     }
